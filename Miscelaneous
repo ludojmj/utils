@@ -1,0 +1,116 @@
+using System;
+using System.IO;
+using System.Text;
+using System.Web;
+using System.Web.Security;
+using System.Xml.Serialization;
+
+namespace MyApp.Shared
+{
+    public static class Miscelaneous
+    {
+        /// <summary>
+        /// Serialize XML object.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="toSerialize"></param>
+        /// <returns>string</returns>
+        public static string SerializeObject<T>(T toSerialize)
+        {
+            var xmlSerializer = new XmlSerializer(toSerialize.GetType());
+
+            using (var textWriter = new Utf8StringWriter())
+            {
+                xmlSerializer.Serialize(textWriter, toSerialize);
+                return textWriter.ToString();
+            }
+        }
+
+        /// <summary>
+        /// Deserialize XML object.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="toSerialize"></param>
+        /// <returns>Object</returns>
+        public static T DeserializeObject<T>(string toSerialize)
+        {
+            T result;
+            var xmlSerializer = new XmlSerializer(typeof(T));
+            using (TextReader tr = new StringReader(toSerialize))
+            {
+                result = (T)xmlSerializer.Deserialize(tr);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Protect Base64 string.
+        /// </summary>
+        /// <param name="plainText"></param>
+        /// <returns></returns>
+        public static string Base64Encode(this string plainText)
+        {
+            byte[] plainTextBytes = Encoding.UTF8.GetBytes(plainText.Protect("passPhrase"));
+            string result = Convert.ToBase64String(plainTextBytes);
+            return result;
+        }
+
+        /// <summary>
+        /// Unprotect Base64 string.
+        /// </summary>
+        /// <param name="base64EncodedData"></param>
+        /// <returns>string</returns>
+        public static string Base64Decode(this string base64EncodedData)
+        {
+            byte[] base64EncodedBytes = Convert.FromBase64String(base64EncodedData);
+            var result = Encoding.UTF8.GetString(base64EncodedBytes).Unprotect("passPhrase");
+            return result;
+        }
+
+        /// <summary>
+        /// Protect data.
+        /// </summary>
+        /// <param name="value"></param>
+        /// <param name="token"></param>
+        /// <returns>string</returns>
+        private static string Protect(this string value, string token)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return null;
+            }
+            byte[] stream = Encoding.UTF8.GetBytes(value);
+            byte[] encodedValue = MachineKey.Protect(stream, token);
+            return HttpServerUtility.UrlTokenEncode(encodedValue);
+        }
+
+        /// <summary>
+        /// Unprotect data.
+        /// </summary>
+        /// <param name="value"></param>
+        /// <param name="token"></param>
+        /// <returns>string</returns>
+        private static string Unprotect(this string value, string token)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return null;
+            }
+            byte[] stream = HttpServerUtility.UrlTokenDecode(value);
+            if (stream == null)
+            {
+                return null;
+            }
+            byte[] decodedValue = MachineKey.Unprotect(stream, token);
+            return decodedValue == null ? null : Encoding.UTF8.GetString(decodedValue);
+        }
+
+        /// <summary>
+        /// UTF8 for object serialization.
+        /// </summary>
+        private class Utf8StringWriter : StringWriter
+        {
+            public override Encoding Encoding => Encoding.UTF8;
+        }
+    }
+}
